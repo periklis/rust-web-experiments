@@ -16,6 +16,7 @@ use std::time::SystemTime;
 
 use bytes::BytesMut;
 use futures::{future, BoxFuture, Future, Stream, Sink};
+use futures_cpupool::CpuPool;
 use httpdate::fmt_http_date;
 use http_muncher::{Parser, ParserHandler};
 use tokio_io::AsyncRead;
@@ -121,6 +122,7 @@ Connection: close
 }
 
 fn main() {
+    let pool = CpuPool::new(4);
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
@@ -135,7 +137,7 @@ fn main() {
         let responses = reader.and_then(move |req| service.call(req));
         let server = writer.send_all(responses).then(|_| Ok(()));
 
-        handle.spawn(server);
+        handle.spawn(pool.spawn(server));
 
         Ok(())
     });
