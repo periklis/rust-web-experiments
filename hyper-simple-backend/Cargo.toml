@@ -1,0 +1,12 @@
+[package]
+name = "hyper-simple-backend"
+version = "0.1.0"
+authors = ["Periklis Tsirakidis <periklis.tsirakidis@mayflower.de>"]
+
+[dependencies]
+futures = "^0.1.14"
+hyper = { git = "https://github.com/hyperium/hyper", branch = "master" }
+pretty_env_logger = "^0.1"
+serde = "^1.0.8"
+serde_derive = "^1.0.8"
+serde_json = "^1.0.2"

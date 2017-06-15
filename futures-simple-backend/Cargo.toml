@@ -1,0 +1,16 @@
+[package]
+name = "futures-simple-backend"
+version = "0.1.0"
+authors = ["Periklis Tsirakidis <periklis.tsirakidis@mayflower.de>"]
+
+[dependencies]
+bytes = "^0.4"
+futures = "^0.1"
+futures-cpupool = "^0.1"
+httpdate = "^0.2.1"
+http-muncher = "^0.3"
+tokio-io = "^0.1.2"
+tokio-core = "^0.1.8"
+tokio-timer = "^0.1"
+tokio-proto = "^0.1.1"
+tokio-service = "^0.1.0"
