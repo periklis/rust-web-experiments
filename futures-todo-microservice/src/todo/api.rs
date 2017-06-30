@@ -1,113 +1,62 @@
-use std::convert::{Into};
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::io::{Error as IoError, ErrorKind};
-use std::option::Option;
-use std::result::Result;
-use std::time::SystemTime;
+use std::io::Error as IoError;
 
-use futures::{Async, Poll};
-use futures::future::{Future, FutureResult, err, ok};
-use httpdate::fmt_http_date;
-use tk_http::{Status};
-use tk_http::server::buffered::{Request};
-use tk_http::server::{Encoder, EncoderDone, Error};
+use futures::future::Future;
+use serde::ser::Error as SerializeError;
+use serde_json;
+use tokio_http2::http::{Request, Response};
+use tokio_http2::method::Method;
+use tokio_service::Service;
 
-use super::Todo;
+use super::TodoRepository;
 
-pub enum Api {
-    Error,
-    Get(Request),
-    Post(Request),
-    Put(Request),
-    Delete(Request)
-}
+pub struct TodoService;
 
-impl Api {
-    pub fn serve<S>(req: Request, mut e: Encoder<S>)
-                    -> FutureResult<EncoderDone<S>, Error> {
+impl Service for TodoService {
+    type Request = Request;
+    type Response = Response;
+    type Error = IoError;
+    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
-        e.status(Status::Ok);
-
-        let api: Api = req.into();
-
-        let response = match api {
-            Api::Get(req) => {
-                let parts: Vec<&str> = req.path().split('/').collect();
-
-                if parts.len() == 0 {
-                    None
-                } else {
-                    println!("{:?}", parts);
-                    Todo::get(parts[1].parse().unwrap())
-                }
+    fn call(&self, request: Request) -> Self::Future {
+        let repository = match request.method()  {
+            Method::Get => {
+                let query = request.query().unwrap();
+                let id = query.get("id").unwrap();
+                TodoRepository::Read(id[0].parse().unwrap())
             },
-            Api::Post(req) => None,
-            Api::Put(req) => None,
-            Api::Delete(req) => None,
-            Api::Error => {
-                e.status(Status::InternalServerError);
-                None
-            }
+            Method::Post => {
+                TodoRepository::Create(serde_json::from_slice(request.payload().unwrap()).unwrap())
+            },
+            Method::Put =>  {
+                TodoRepository::Update(serde_json::from_slice(request.payload().unwrap()).unwrap())
+            },
+            Method::Delete => {
+                let query = request.query().unwrap();
+                let id = query.get("id").unwrap();
+                TodoRepository::Delete(id[0].parse().unwrap())
+            },
+            _ => TodoRepository::Error
         };
 
-        match response {
-            Some(t) => {
-                let todo = t.to_string();
-                e.add_length(todo.as_bytes().len() as u64).unwrap();
-                e.format_header("Date", fmt_http_date(SystemTime::now())).unwrap();
+        repository.map(|todo| {
+            let todo_str = todo
+                .ok_or(serde_json::error::Error::custom("Error: Something went wrong"))
+                .and_then(|t| serde_json::to_string(&t))
+                .and_then(|j| Ok(j.into_bytes()));
 
-                match e.done_headers() {
-                    Ok(_) => {
-                        e.write_body(todo.as_bytes());
-                        ok(e.done())
-                    },
-                    Err(e) => err(Error::custom(e))
+            let (response_body, content_len) = match todo_str {
+                Err(_) => ("".to_string().into_bytes(), "0".to_string()),
+                Ok(body) => {
+                    let len = body.len();
+                    (body, len.to_string())
                 }
-            },
-            None => err(Error::custom(IoError::new(ErrorKind::Other, "oh no!")))
-        }
+            };
+
+            Response::new()
+                .with_header("Connection", "close")
+                .with_header("Content-Length", content_len.as_str())
+                .with_body(response_body)
+
+        }).boxed()
     }
 }
-
-impl Into<Api> for Request {
-    fn into(self) -> Api {
-        match self.method().to_uppercase().as_str() {
-            "GET" => Api::Get(self),
-            "POST" => Api::Post(self),
-            "PUT" => Api::Put(self),
-            "DELETE" => Api::Delete(self),
-            _ => Api::Error
-        }
-    }
-}
-
-// impl From<Request> for Api {
-//     fn from(value: Request) -> Self {
-//         value.into()
-//     }
-// }
-
-impl Display for Api {
-
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self {
-            &Api::Error => write!(f, "Api Error"),
-            &Api::Get(ref r) => write!(f, "Request existing todo: {:?}", r),
-            &Api::Post(ref r) => write!(f, "Create new todo: {:?}", r),
-            &Api::Put(ref r) => write!(f, "Update new todo: {:?}", r),
-            &Api::Delete(ref r) => write!(f, "Delete existing todo: {:?}", r)
-        }
-    }
-}
-
-// impl<T> Future for Api<T> {
-//     type Item = super::Todo;
-//     type Error = io::Error;
-
-//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//         match *self {
-//             Api::Get =>  Ok(Todo::get(req)),
-//             _ => Ok(Async::NotReady)
-//         }
-//     }
-// }

@@ -1,5 +1,8 @@
-use std::convert::Into;
+use std::io::{Error as IoError, ErrorKind};
 use std::string::ToString;
+
+use futures::{Async, Poll};
+use futures::future::Future;
 
 pub mod api;
 
@@ -19,17 +22,49 @@ pub enum TodoStatus {
     Done
 }
 
+enum TodoRepository {
+    Error,
+    Create(Todo),
+    Read(usize),
+    Update(Todo),
+    Delete(usize)
+}
 
-impl Todo {
-    fn get(id: usize) -> Option<Todo> {
-        Some(Todo{
-            id: id,
-            title: "Do your future homework".to_string(),
-            desc: "Do your future homework using futures".to_string(),
-            status: TodoStatus::InProgress
-        })
+impl Future for TodoRepository {
+    type Item = Option<Todo>;
+    type Error = IoError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self {
+            &mut TodoRepository::Create(_) => {
+                // TODO INSERT INTO DB
+                Err(IoError::new(ErrorKind::Other, "Not implemented"))
+            }
+            &mut TodoRepository::Read(id) => {
+                // TODO SELECT FROM DB
+                Ok(Async::Ready(Some(Todo{
+                    id: id,
+                    title: "Do your future homework".to_string(),
+                    desc: "Do your future homework using futures".to_string(),
+                    status: TodoStatus::InProgress
+                })))
+            },
+            &mut TodoRepository::Update(_) => {
+                // TODO UPDATE INTO DB
+
+                Err(IoError::new(ErrorKind::Other, "Not implemented"))
+            },
+            &mut TodoRepository::Delete(_) => {
+                // TODO DELETE FROM DB
+                Err(IoError::new(ErrorKind::Other, "Not implemented"))
+            }
+            &mut TodoRepository::Error => {
+                Err(IoError::new(ErrorKind::Other, "Not implemented"))
+            }
+        }
     }
 }
+
 
 impl ToString for Todo {
     fn to_string(&self) -> String {
