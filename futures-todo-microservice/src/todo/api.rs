@@ -7,7 +7,7 @@ use tokio_http2::http::{Request, Response};
 use tokio_http2::method::Method;
 use tokio_service::Service;
 
-use super::TodoRepository;
+use super::repository::TodoRepository;
 
 pub struct TodoService;
 
@@ -18,6 +18,7 @@ impl Service for TodoService {
     type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
     fn call(&self, request: Request) -> Self::Future {
+        // TODO Eliminate unwraps and add proper error propagation
         let repository = match request.method()  {
             Method::Get => {
                 let query = request.query().unwrap();
